@@ -10,9 +10,9 @@ fake = Faker()
 
 # Configuration
 NUM_PRODUCTS = 50
-NUM_POS = 5
-NUM_WAREHOUSES = 2
-DAYS_TO_GENERATE = 1
+NUM_POS = 15  # Increased from 5 to 15 stores
+NUM_WAREHOUSES = 5  # Increased from 2 to 5 warehouses
+DAYS_TO_GENERATE = 7  # Generate 7 days of data
 OUTPUT_DIR_ORDERS = "data/raw/orders"
 OUTPUT_DIR_STOCK = "data/raw/stock"
 
@@ -27,7 +27,7 @@ def generate_pos_orders(date_str):
     """Generate JSON files for POS orders."""
     for pos_id in range(1, NUM_POS + 1):
         orders = []
-        num_orders = random.randint(10, 50)
+        num_orders = random.randint(150, 300)  # Much more orders per store
         
         for _ in range(num_orders):
             order = {
@@ -37,12 +37,12 @@ def generate_pos_orders(date_str):
                 "items": []
             }
             
-            num_items = random.randint(1, 5)
+            num_items = random.randint(1, 8)  # More items per order
             for _ in range(num_items):
                 item = {
                     "sku": random.choice(product_ids),
-                    "quantity": random.randint(1, 10),
-                    "price": round(random.uniform(10.0, 100.0), 2)
+                    "quantity": random.randint(1, 15),  # Higher quantities
+                    "price": round(random.uniform(1.0, 150.0), 2)
                 }
                 order["items"].append(item)
             orders.append(order)
@@ -69,10 +69,17 @@ def generate_warehouse_stock(date_str):
         print(f"Generated {filename}")
 
 if __name__ == "__main__":
-    today = datetime.now().strftime("%Y-%m-%d")
-    print(f"Generating data for {today}...")
+    from datetime import timedelta
     
-    generate_pos_orders(today)
-    generate_warehouse_stock(today)
+    # Generate data for the last DAYS_TO_GENERATE days
+    base_date = datetime.now()
     
-    print("Data generation complete.")
+    for day_offset in range(DAYS_TO_GENERATE):
+        current_date = base_date - timedelta(days=DAYS_TO_GENERATE - day_offset - 1)
+        date_str = current_date.strftime("%Y-%m-%d")
+        print(f"\nGenerating data for {date_str}...")
+        
+        generate_pos_orders(date_str)
+        generate_warehouse_stock(date_str)
+    
+    print(f"\nData generation complete! Generated {DAYS_TO_GENERATE} days of data.")

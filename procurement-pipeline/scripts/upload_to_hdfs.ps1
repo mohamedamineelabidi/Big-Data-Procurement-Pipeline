@@ -2,34 +2,50 @@
 
 Write-Host "Starting HDFS Batch Upload..." -ForegroundColor Green
 
-# Create directories
-Write-Host "Creating HDFS directories..."
-docker exec procurement_namenode hdfs dfs -mkdir -p /raw/orders/2026-01-03
-docker exec procurement_namenode hdfs dfs -mkdir -p /raw/stock/2026-01-03
-
-# Upload Orders
-Write-Host "Uploading POS orders..." -ForegroundColor Yellow
+# Get all unique dates from generated files
+$dates = @()
 Get-ChildItem "data/raw/orders/*.json" | ForEach-Object {
-    $filename = $_.Name
-    Write-Host "  Uploading $filename"
-    docker cp $_.FullName procurement_namenode:/tmp/$filename
-    docker exec procurement_namenode hdfs dfs -put -f /tmp/$filename /raw/orders/2026-01-03/
+    if ($_.Name -match '\d{4}-\d{2}-\d{2}') {
+        $date = $Matches[0]
+        if ($dates -notcontains $date) {
+            $dates += $date
+        }
+    }
 }
 
-# Upload Stock
-Write-Host "Uploading warehouse stock..." -ForegroundColor Yellow
-Get-ChildItem "data/raw/stock/*.csv" | ForEach-Object {
-    $filename = $_.Name
-    Write-Host "  Uploading $filename"
-    docker cp $_.FullName procurement_namenode:/tmp/$filename
-    docker exec procurement_namenode hdfs dfs -put -f /tmp/$filename /raw/stock/2026-01-03/
+Write-Host "Found $($dates.Count) dates to process" -ForegroundColor Cyan
+
+foreach ($date in $dates) {
+    Write-Host "`nProcessing date: $date" -ForegroundColor Yellow
+    
+    # Create directories
+    docker exec procurement_namenode hdfs dfs -mkdir -p /raw/orders/$date 2>$null
+    docker exec procurement_namenode hdfs dfs -mkdir -p /raw/stock/$date 2>$null
+    
+    # Upload Orders for this date
+    $orderFiles = Get-ChildItem "data/raw/orders/*$date.json"
+    Write-Host "  Uploading $($orderFiles.Count) order files..."
+    foreach ($file in $orderFiles) {
+        docker cp $file.FullName procurement_namenode:/tmp/$($file.Name) 2>$null
+        docker exec procurement_namenode hdfs dfs -put -f /tmp/$($file.Name) /raw/orders/$date/ 2>$null
+    }
+    
+    # Upload Stock for this date
+    $stockFiles = Get-ChildItem "data/raw/stock/*$date.csv"
+    Write-Host "  Uploading $($stockFiles.Count) stock files..."
+    foreach ($file in $stockFiles) {
+        docker cp $file.FullName procurement_namenode:/tmp/$($file.Name) 2>$null
+        docker exec procurement_namenode hdfs dfs -put -f /tmp/$($file.Name) /raw/stock/$date/ 2>$null
+    }
 }
 
 # Verify
 Write-Host "`nVerifying uploads..." -ForegroundColor Green
-Write-Host "`nOrders:"
-docker exec procurement_namenode hdfs dfs -ls /raw/orders/2026-01-03/
-Write-Host "`nStock:"
-docker exec procurement_namenode hdfs dfs -ls /raw/stock/2026-01-03/
+Write-Host "`nHDFS Directory Structure:"
+docker exec procurement_namenode hdfs dfs -ls -R /raw | Select-String -Pattern "drw|\.json|\.csv"
+
+Write-Host "`nCalculating total size..."
+$report = docker exec procurement_namenode hdfs dfs -du -s -h /raw
+Write-Host $report -ForegroundColor Cyan
 
 Write-Host "`nHDFS Upload Complete!" -ForegroundColor Green
