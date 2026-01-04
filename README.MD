@@ -119,18 +119,42 @@ The core of the replenishment logic uses the following formula:
 
 ---
 
-## 🚀 To-Do List (Roadmap)
+## 🚀 Project Status & Completed Phases
+
+### ✅ Phase 1: Infrastructure Setup (COMPLETED)
+- Docker orchestration with PostgreSQL, HDFS, and Trino
+- Master data schema with 49 products, 10 suppliers
+- Test data generation with 15 POS locations
+- All services verified and running
+
+### ✅ Phase 2: Data Ingestion (COMPLETED)
+- HDFS directory hierarchy established
+- 7 days of historical data uploaded (Dec 28 - Jan 3, 2026)
+- Data quality validation passed (15,150 orders, 250 stock records)
+
+### ✅ Phase 3: Analytical Processing (COMPLETED)
+- **Trino distributed query engine configured**
+- **Demand aggregation:** 121,840 units ordered across 50 SKUs
+- **Net demand calculation:** Using formula `Net Demand = Total Orders - Stock + Safety Stock`
+- **Business rules applied:** MOQ compliance and case size rounding
+- **Output:** 24 SKUs need replenishment (32,748 units from 5 suppliers)
+
+### 🔄 Phase 4: Output Generation (IN PROGRESS)
+- CSV report generated with replenishment recommendations
+- Next: JSON supplier order files
+
+### 📋 To-Do List (Roadmap)
 
 1. [x] **Phase 1:** Setup Docker environment and generate test data with `Faker`.
 
 
-2. [ ] **Phase 2:** Implement HDFS ingestion with the `/raw/YYYY-MM-DD/` hierarchy.
+2. [x] **Phase 2:** Implement HDFS ingestion with the `/raw/YYYY-MM-DD/` hierarchy.
 
 
-3. [ ] **Phase 3:** Create PostgreSQL master tables and link them to Presto.
+3. [x] **Phase 3:** Create PostgreSQL master tables and link them to Trino.
 
 
-4. [ ] **Phase 4:** Build the SQL logic for net demand and supplier rules.
+4. [x] **Phase 4 (Partial):** Build the SQL logic for net demand and supplier rules.
 
 
 5. [ ] **Phase 5:** Automate the end-to-end pipeline and generate Exception Reports.
