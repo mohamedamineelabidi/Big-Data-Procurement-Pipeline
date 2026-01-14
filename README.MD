@@ -2363,7 +2363,7 @@ python scripts/test_system.py
 
 ---
 
-## 🤖 AI Development Context (GitHub Copilot)
+
 
 ### Project Understanding for AI Assistants
 
