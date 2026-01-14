@@ -53,8 +53,10 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./config/trino:/etc/trino/catalog
-      - ./config/trino-config:/etc/trino
+      - ./config/trino-config/catalog:/etc/trino/catalog
+      - ./config/trino-config/config.properties:/etc/trino/config.properties
+      - ./config/trino-config/jvm.config:/etc/trino/jvm.config
+      - ./config/trino-config/node.properties:/etc/trino/node.properties
       - ./data/raw:/data/raw:ro
     networks:
       - procurement_network
