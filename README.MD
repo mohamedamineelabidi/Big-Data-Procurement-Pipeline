@@ -1,18 +1,51 @@
-# 🏭 Procurement Data Pipeline
+<div align="center">
 
-**Module:** Fondements Big Data (ENSA Al Hoceima)  
+# 🏭 Big Data Procurement Pipeline
+
+### Intelligent Retail Replenishment System
+
+![Status](https://img.shields.io/badge/status-production-brightgreen)
+![Docker](https://img.shields.io/badge/docker-20.10+-blue)
+![Python](https://img.shields.io/badge/python-3.10+-blue)
+![Airflow](https://img.shields.io/badge/airflow-2.7.3-orange)
+![HDFS](https://img.shields.io/badge/hadoop-3.2.1-yellow)
+![Trino](https://img.shields.io/badge/trino-435+-purple)
+
+**Module:** Fondements Big Data  
+**Institution:** École Nationale des Sciences Appliquées (ENSA) Al Hoceima  
 **Academic Year:** 2025-2026  
-**Branch:** `data_ing-phase3`
+**Branch:** `feature-lastphase`
 
 ---
 
-## 📌 Project Overview
+</div>
 
-This project implements a **batch-oriented data pipeline** for a retail procurement system. The system collects daily customer orders from 15 Points of Sale (POS) and warehouse stock levels from 5 warehouses, then calculates net demand and automatically generates supplier replenishment orders.
+## 📋 Table of Contents
 
-### 🎯 Business Objective
+- [Overview](#-project-overview)
+- [Architecture](#-system-architecture)
+- [Technology Stack](#-technology-stack)
+- [Features](#-key-features)
+- [Quick Start](#-quick-start)
+- [Pipeline Workflow](#-pipeline-workflow)
+- [Business Logic](#-business-logic)
+- [Data Flow](#-data-flow)
+- [Project Statistics](#-project-statistics)
+- [Usage](#-usage)
+- [Monitoring](#-monitoring)
+- [Troubleshooting](#-troubleshooting)
+- [Contributing](#-contributing)
+- [Contact](#-contact)
 
-Transform raw sales and inventory data into actionable procurement decisions:
+---
+
+## 🎯 Project Overview
+
+This project implements a **production-grade, batch-oriented data pipeline** for automated retail procurement. The system processes daily customer orders from 15 Points of Sale (POS) and warehouse stock levels from 5 warehouses, calculating net demand and automatically generating optimized supplier replenishment orders.
+
+### Business Objective
+
+Transform raw transactional data into intelligent procurement decisions using distributed computing:
 
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
@@ -20,24 +53,30 @@ Transform raw sales and inventory data into actionable procurement decisions:
 │    Stores       │ ──▶ │   Processing    │ ──▶ │    Orders       │
 │  (JSON Orders)  │     │   (Batch ETL)   │     │   (JSON Files)  │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
+      Daily                 22:00-00:00              Automated
 ```
 
-### ⚠️ Key Constraints
+### Key Constraints
 
 | Constraint | Description |
 |------------|-------------|
-| **Batch Only** | No streaming technologies (Kafka/Flink/Spark Streaming) allowed |
-| **Distributed** | Uses HDFS for storage and Trino for distributed SQL queries |
-| **Separation** | Clearly separated OLTP (PostgreSQL) and Analytical (HDFS) layers |
-| **Time Window** | Pipeline runs in 22:00 - 00:00 batch window |
+| 🚫 **Batch Only** | No streaming technologies (Kafka/Flink/Spark Streaming) |
+| 🌐 **Distributed** | HDFS 3-way replication across 4 datanodes |
+| 🔄 **Separation** | Clear OLTP (PostgreSQL) and Analytical (HDFS) layers |
+| ⏰ **Time Window** | Daily batch processing: 22:00 - 00:00 |
+| 📊 **Scalable** | Handles 141+ files, 49 products, 10 suppliers |
 
 ---
 
 ## 🏗️ System Architecture
 
+### Infrastructure Overview
+
+The system runs on **6 Docker containers** forming a complete big data ecosystem:
+
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│                         PROCUREMENT PIPELINE ARCHITECTURE                        │
+│                      PROCUREMENT PIPELINE ARCHITECTURE                          │
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                  │
 │   DATA SOURCES                                                                   │
@@ -45,13 +84,14 @@ Transform raw sales and inventory data into actionable procurement decisions:
 │   ┌──────────────┐    ┌──────────────┐    ┌──────────────┐                      │
 │   │   15 POS     │    │  5 Warehouses │    │  PostgreSQL  │                      │
 │   │   Stores     │    │    Stock      │    │  Master Data │                      │
-│   │  (JSON)      │    │   (CSV)       │    │  (Products,  │                      │
+│   │  (105 JSON)  │    │   (35 CSV)    │    │  (Products,  │                      │
 │   │              │    │              │    │  Suppliers)  │                      │
 │   └──────┬───────┘    └──────┬───────┘    └──────┬───────┘                      │
 │          │                   │                   │                               │
 │          ▼                   ▼                   │                               │
 │   ┌─────────────────────────────────────┐       │                               │
-│   │         HDFS DATA LAKE              │       │                               │
+│   │     HDFS DATA LAKE (3.93 TB)        │       │                               │
+│   │   🔄 3-Way Replication (4 Nodes)    │       │                               │
 │   │  ┌─────────────┐ ┌─────────────┐   │       │                               │
 │   │  │ /raw/orders │ │ /raw/stock  │   │       │                               │
 │   │  │  105 files  │ │  35 files   │   │       │                               │
@@ -61,7 +101,7 @@ Transform raw sales and inventory data into actionable procurement decisions:
 │                      ▼                           ▼                               │
 │   ┌─────────────────────────────────────────────────────────────────┐           │
 │   │                      TRINO QUERY ENGINE                          │           │
-│   │         (Federated SQL across HDFS + PostgreSQL)                │           │
+│   │            Federated SQL across HDFS + PostgreSQL                │           │
 │   │                                                                  │           │
 │   │  ┌─────────────────┐              ┌─────────────────┐          │           │
 │   │  │  Hive Catalog   │              │ PostgreSQL      │          │           │
@@ -95,64 +135,296 @@ Transform raw sales and inventory data into actionable procurement decisions:
 │   ═════════════                                                                  │
 │   ┌─────────────────────────────────────────────────────────────────┐           │
 │   │                    APACHE AIRFLOW                                │           │
-│   │         Schedule: Daily at 22:00 | DAG: procurement_daily       │           │
+│   │       🕐 Schedule: Daily at 22:00 | 9-Task DAG Pipeline          │           │
 │   └─────────────────────────────────────────────────────────────────┘           │
 │                                                                                  │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
+### Container Topology
+
+| Container | Image | Purpose | Ports | Status |
+|-----------|-------|---------|-------|--------|
+| **procurement_postgres** | postgres:13 | OLTP master data | 5432 | ✅ Active |
+| **procurement_namenode** | hadoop-namenode:3.2.1 | HDFS coordinator | 9870, 9000 | ✅ Active |
+| **procurement_datanode1** | hadoop-datanode:3.2.1 | HDFS storage node 1 | 9864 | ✅ Active |
+| **procurement_datanode2** | hadoop-datanode:3.2.1 | HDFS storage node 2 | 9865 | ✅ Active |
+| **procurement_datanode3** | hadoop-datanode:3.2.1 | HDFS storage node 3 | 9866 | ✅ Active |
+| **procurement_trino** | trinodb/trino:435+ | Federated query engine | 8080 | ✅ Active |
+| **procurement_airflow** | apache/airflow:2.7.3 | Workflow orchestration | 8081 | ✅ Active |
+| **procurement_pgadmin** | pgadmin4:latest | Database UI | 5050 | ✅ Active |
+
 ---
 
-## 💻 Technical Stack
+## 💻 Technology Stack
+
+### Core Technologies
 
 | Component | Technology | Version | Purpose |
 |-----------|------------|---------|---------|
-| **Container Platform** | Docker Compose | 3.x | Infrastructure orchestration |
-| **Data Lake** | Apache HDFS | 3.2.1 | Distributed file storage |
-| **OLTP Database** | PostgreSQL | 13 | Master data storage |
-| **Query Engine** | Trino | 479 | Distributed SQL processing |
-| **Orchestration** | Apache Airflow | 2.7.3 | Workflow automation |
-| **Programming** | Python | 3.10+ | Data processing scripts |
-| **Web UI** | pgAdmin | Latest | Database management |
+| 🐳 **Container Platform** | Docker Compose | 3.x | Infrastructure orchestration |
+| 📁 **Data Lake** | Apache HDFS | 3.2.1 | Distributed file storage with 3-way replication |
+| 🗄️ **OLTP Database** | PostgreSQL | 13 | Master data storage (products, suppliers) |
+| ⚡ **Query Engine** | Trino | 435+ | Federated SQL across HDFS + PostgreSQL |
+| 🔄 **Orchestration** | Apache Airflow | 2.7.3 | Workflow automation & scheduling |
+| 🐍 **Programming** | Python | 3.10+ | Data processing & business logic |
+| 🌐 **Web UI** | pgAdmin | Latest | Database management interface |
 
 ### Python Dependencies
 
-```
-pandas>=2.0.0          # Data manipulation
-trino>=0.327.0         # Trino Python client
-psycopg2-binary>=2.9.0 # PostgreSQL client
-faker>=18.0.0          # Test data generation
+```txt
+# Core Data Processing
+pandas>=2.0.0              # Data manipulation & analysis
+trino>=0.327.0             # Trino Python client
+psycopg2-binary>=2.9.0     # PostgreSQL adapter
+python-dateutil>=2.8.0     # Date/time utilities
+
+# Data Generation & Testing
+faker>=18.0.0              # Synthetic data generation
+
+# HDFS Integration
+hdfs>=2.6.0                # Python HDFS client
 ```
 
 ### Why These Technologies?
 
-**HDFS (Hadoop Distributed File System)**
-- ✅ Fault tolerance with 3x replication
-- ✅ Scalable from GB to PB
-- ✅ Industry standard for big data storage
-- ✅ Academic requirement: distributed storage
+#### 📁 HDFS (Hadoop Distributed File System)
+- ✅ **Fault Tolerance**: 3-way replication across 4 datanodes (3.93 TB total)
+- ✅ **Scalability**: Handles 141+ files seamlessly, can scale to petabytes
+- ✅ **Industry Standard**: Battle-tested for big data storage
+- ✅ **Academic Requirement**: Fulfills distributed storage constraint
 
-**Trino (formerly PrestoSQL)**
-- ✅ Query multiple data sources with one SQL
-- ✅ Federates HDFS + PostgreSQL queries
-- ✅ Optimized for analytical workloads
-- ✅ No data movement required
+#### ⚡ Trino (formerly PrestoSQL)
+- ✅ **Federated Queries**: Single SQL interface for HDFS + PostgreSQL
+- ✅ **No ETL Required**: Query data in place without movement
+- ✅ **High Performance**: Optimized for analytical workloads
+- ✅ **Standard SQL**: ANSI SQL compliance for easy adoption
 
-**PostgreSQL**
-- ✅ ACID compliance for master data
-- ✅ Rich data types and constraints
-- ✅ Battle-tested reliability
-- ✅ Perfect for OLTP workloads
+#### 🗄️ PostgreSQL
+- ✅ **ACID Compliance**: Guaranteed data consistency for master data
+- ✅ **Rich Features**: Advanced data types, constraints, triggers
+- ✅ **Reliability**: 20+ years of production stability
+- ✅ **OLTP Optimized**: Perfect for transactional master data
 
-**Apache Airflow**
-- ✅ Visual DAG representation
-- ✅ Retry logic and error handling
-- ✅ Monitoring and alerting
-- ✅ Industry standard for orchestration
+#### 🔄 Apache Airflow
+- ✅ **Visual DAGs**: Easy-to-understand workflow representation
+- ✅ **Robust Scheduling**: Cron-based scheduling with retry logic
+- ✅ **Monitoring**: Built-in logging and alerting
+- ✅ **Python Native**: Write workflows in Python for maximum flexibility
 
 ---
 
-## 📊 Business Logic
+## ⚡ Key Features
+
+- ✅ **Fully Automated**: Nightly batch processing with zero manual intervention
+- ✅ **High Availability**: 3-way HDFS replication across 4 datanodes (3.93 TB)
+- ✅ **Fault Tolerant**: Automatic retry logic and error recovery
+- ✅ **Scalable**: Handles 141+ files, 49 products, 10 suppliers effortlessly
+- ✅ **Intelligent**: Business rules for MOQ, case sizes, lead times, priorities
+- ✅ **Monitored**: Real-time Airflow UI with task status and logs
+- ✅ **Federated Queries**: Trino queries across HDFS + PostgreSQL without ETL
+- ✅ **Exception Detection**: Automatic anomaly alerts for procurement team
+- ✅ **Production Ready**: Docker-based with health checks and logging
+- ✅ **Easy Setup**: One-command deployment with `setup.ps1` or `setup.sh`
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+```bash
+# Required software
+- Docker Desktop 20.10+ (with Docker Compose)
+- Python 3.10+
+- Git
+- 8GB+ RAM recommended
+- 10GB+ disk space
+```
+
+### Installation
+
+#### Windows (PowerShell)
+
+```powershell
+# Clone the repository
+git clone https://github.com/your-repo/big-data-procurement.git
+cd big-data-procurement/procurement-pipeline
+
+# Run automated setup script
+.\setup.ps1
+
+# This script will:
+# ✓ Create Python virtual environment
+# ✓ Install Python dependencies
+# ✓ Generate .gitignore
+# ✓ Create data directories
+# ✓ Generate sample data
+# ✓ Start Docker containers
+# ✓ Initialize HDFS
+# ✓ Load master data to PostgreSQL
+# ✓ Upload files to HDFS
+```
+
+#### Linux/macOS (Bash)
+
+```bash
+# Clone the repository
+git clone https://github.com/your-repo/big-data-procurement.git
+cd big-data-procurement/procurement-pipeline
+
+# Make script executable and run
+chmod +x setup.sh
+./setup.sh
+
+# This script will:
+# ✓ Create Python virtual environment
+# ✓ Install Python dependencies
+# ✓ Generate .gitignore
+# ✓ Create data directories
+# ✓ Generate sample data
+# ✓ Start Docker containers
+# ✓ Initialize HDFS
+# ✓ Load master data to PostgreSQL
+# ✓ Upload files to HDFS
+```
+
+### Verify Installation
+
+```bash
+# Check all containers are running
+docker ps
+
+# Expected output: 8 containers running
+# ✓ procurement_postgres
+# ✓ procurement_namenode
+# ✓ procurement_datanode1
+# ✓ procurement_datanode2
+# ✓ procurement_datanode3
+# ✓ procurement_trino
+# ✓ procurement_airflow
+# ✓ procurement_pgadmin
+
+# Check HDFS health
+docker exec procurement_namenode hdfs dfsadmin -report
+
+# Access web interfaces
+# Airflow UI:  http://localhost:8081 (admin/admin)
+# Trino UI:    http://localhost:8080
+# HDFS UI:     http://localhost:9870
+# pgAdmin:     http://localhost:5050 (admin@admin.com/admin)
+```
+
+---
+
+## 📊 Project Statistics
+
+### Data Volume
+
+| Metric | Count | Details |
+|--------|-------|---------|
+| 📁 **Total Files** | 141 | 105 JSON + 35 CSV + 1 test file |
+| 📦 **Order Files** | 105 | 15 stores × 7 days of history |
+| 📊 **Stock Files** | 35 | 5 warehouses × 7 days of history |
+| 🏪 **Products** | 49 | Across 5 categories (Dairy, Bakery, Beverages, Snacks, Frozen) |
+| 🚚 **Suppliers** | 10 | With unique lead times and MOQs |
+| 🏬 **POS Stores** | 15 | Retail locations generating daily orders |
+| 🏭 **Warehouses** | 5 | Distribution centers tracking stock |
+| 💾 **HDFS Capacity** | 3.93 TB | Across 4 datanodes with 3-way replication |
+| ⚙️ **Pipeline Tasks** | 9 | Airflow DAG tasks |
+| 🕐 **Schedule** | 22:00 Daily | Batch processing window |
+
+### Sample Products
+
+| SKU | Product | Category | Supplier | Lead Time |
+|-----|---------|----------|----------|-----------|
+| SKU-0001 | Skim Milk 1L | Dairy | DairyFresh LLC | 3 days |
+| SKU-0015 | Apple Juice 1L | Beverages | BevCo Distributors | 2 days |
+| SKU-0022 | Bagels 6pk | Bakery | FreshMart Wholesale | 1 day |
+| SKU-0030 | Ice Cream Tub 1L | Frozen | FreshMart Wholesale | 5 days |
+| SKU-0042 | Potato Chips 200g | Snacks | FreshMart Wholesale | 2 days |
+
+### HDFS Replication Details
+
+```
+Cluster Configuration:
+• Replication Factor: 3
+• Total Datanodes: 4 (1 legacy + 3 new)
+• Active Nodes: 4
+• Total Capacity: 3.93 TB
+• Configured Capacity: 3,869.74 GB
+• Status: ✅ HEALTHY
+
+Datanode Distribution:
+• datanode  (legacy): 1006.85 GB | 140 blocks
+• datanode1 (new):    1006.85 GB | Active
+• datanode2 (new):    1006.85 GB | Active
+• datanode3 (new):    1006.85 GB | Active
+
+Replication Health:
+• Average Replication: 3.0
+• Under-replicated: 0
+• Missing Blocks: 0
+• Corrupt Blocks: 0
+```
+
+---
+
+## 🔄 Pipeline Workflow
+
+### Airflow DAG Visualization
+
+The procurement pipeline consists of **9 orchestrated tasks** executed daily at 22:00:
+
+```
+                          start
+                            │
+                            ▼
+                    get_processing_date
+                            │
+                            ▼
+                  validate_data_sources
+                            │
+                            ▼
+                    data_quality_check
+                            │
+                            ▼
+                     compute_demand
+                            │
+                 ┌──────────┴──────────┐
+                 ▼                     ▼
+           export_orders      generate_exceptions
+                 │                     │
+                 └──────────┬──────────┘
+                            ▼
+                    generate_summary
+                            │
+                            ▼
+                           end
+```
+
+### Task Breakdown
+
+| Task # | Task Name | Duration | Description |
+|--------|-----------|----------|-------------|
+| 1 | `start_pipeline` | <1s | Initialize pipeline execution |
+| 2 | `get_processing_date` | <1s | Determine date to process (execution_date) |
+| 3 | `validate_data_sources` | ~2s | Verify order & stock files exist |
+| 4 | `data_quality_check` | ~5s | Validate JSON/CSV structure & data types |
+| 5 | `compute_demand` | ~15s | Run Trino queries & calculate net demand |
+| 6 | `export_orders` | ~8s | Generate supplier order JSON files |
+| 7 | `generate_exceptions` | ~8s | Detect anomalies & create alerts |
+| 8 | `generate_summary` | ~2s | Compile execution report |
+| 9 | `end_pipeline` | <1s | Mark completion |
+
+**Total Execution Time**: ~40-60 seconds  
+**Schedule**: `0 22 * * *` (Daily at 22:00)  
+**Retries**: 2 attempts with 5-minute delay  
+**Timeout**: 2 hours max
+
+---
+
+## 📈 Business Logic
 
 ### 1. Net Demand Formula
 
@@ -422,10 +694,556 @@ The system automatically detects anomalies and alerts procurement managers:
 
 ```
 Big-data/
-├── README.MD                          # This file
+├── README.MD                          # Comprehensive project documentation
 ├── TODO.MD                            # Project roadmap & task tracking
 │
 └── procurement-pipeline/
+    │
+    ├── docker-compose.yml             # 8-container infrastructure
+    ├── requirements.txt               # Python dependencies
+    ├── setup.ps1                      # Windows automated setup
+    ├── setup.sh                       # Linux/macOS automated setup
+    ├── .gitignore                     # Git ignore rules
+    │
+    ├── HDFS_REPLICATION.md            # HDFS 3-way replication docs
+    ├── PROJECT_STATUS.md              # Current project status
+    ├── SUMMARY_REPORT.md              # Pipeline execution summaries
+    │
+    ├── airflow/
+    │   ├── dags/
+    │   │   └── procurement_dag.py     # Main DAG (9 tasks, 22:00 schedule)
+    │   └── logs/                      # Airflow execution logs
+    │       └── dag_id=procurement_daily_pipeline/
+    │
+    ├── config/
+    │   └── trino-config/
+    │       ├── config.properties      # Trino server config
+    │       ├── jvm.config             # JVM memory settings
+    │       ├── node.properties        # Node configuration
+    │       └── catalog/
+    │           ├── hive.properties    # HDFS catalog
+    │           └── postgresql.properties  # PostgreSQL catalog
+    │
+    ├── data/
+    │   ├── raw/
+    │   │   ├── orders/                # 105 JSON files (15 stores × 7 days)
+    │   │   │   ├── sample_pos_1_2026-01-03.json
+    │   │   │   └── ...
+    │   │   └── stock/                 # 35 CSV files (5 warehouses × 7 days)
+    │   │       ├── sample_warehouse_1_2026-01-03.csv
+    │   │       └── ...
+    │   └── output/
+    │       ├── replenishment_*.csv            # Net demand calculations
+    │       ├── supplier_orders/*.json         # Supplier order files
+    │       ├── exception_report_*.json        # Anomaly alerts
+    │       └── pipeline_summary_*.txt         # Execution summaries
+    │
+    ├── logs/                          # Application logs
+    │
+    ├── scripts/
+    │   ├── data_gen.py                # Generate synthetic test data
+    │   ├── ingest_hdfs.py             # Upload files to HDFS
+    │   ├── compute_demand.py          # Calculate net demand (Trino)
+    │   ├── export_orders.py           # Generate supplier orders
+    │   ├── generate_exceptions.py     # Detect anomalies
+    │   ├── validate_data_quality.py   # Data quality checks
+    │   ├── test_connection.py         # Test Trino/PostgreSQL connectivity
+    │   ├── test_system.py             # System validation tests
+    │   ├── run_pipeline.py            # Manual pipeline execution
+    │   └── upload_to_hdfs.ps1         # PowerShell HDFS upload
+    │
+    └── sql/
+        ├── postgres/
+        │   ├── schema.sql             # Database schema
+        │   ├── init_master_data.sql   # Load products & suppliers
+        │   └── 02_create_airflow_db.sql  # Airflow metadata DB
+        └── presto/
+            └── analysis.sql           # Example Trino queries
+```
+
+---
+
+## 💼 Usage
+
+### Daily Operations
+
+#### Start the System
+
+```powershell
+# Navigate to project directory
+cd procurement-pipeline
+
+# Start all containers
+docker-compose up -d
+
+# Verify all services are running
+docker ps
+
+# Check logs
+docker-compose logs -f --tail=50
+```
+
+#### Access Web Interfaces
+
+| Service | URL | Credentials | Purpose |
+|---------|-----|-------------|---------|
+| **Airflow** | http://localhost:8081 | admin/admin | Workflow monitoring & DAG execution |
+| **Trino** | http://localhost:8080 | No auth | Query engine UI & cluster status |
+| **HDFS** | http://localhost:9870 | No auth | File system browser & datanode status |
+| **pgAdmin** | http://localhost:5050 | admin@admin.com/admin | PostgreSQL database management |
+
+#### Manual Pipeline Execution
+
+```powershell
+# Run complete pipeline for specific date
+docker exec procurement_airflow python /opt/airflow/scripts/run_pipeline.py --date 2026-01-03
+
+# Run individual stages
+docker exec procurement_airflow python /opt/airflow/scripts/compute_demand.py --date 2026-01-03
+docker exec procurement_airflow python /opt/airflow/scripts/export_orders.py --date 2026-01-03
+docker exec procurement_airflow python /opt/airflow/scripts/generate_exceptions.py --date 2026-01-03
+```
+
+#### Generate New Test Data
+
+```powershell
+# Generate data for specific date range
+docker exec procurement_airflow python /opt/airflow/scripts/data_gen.py \
+    --start-date 2026-01-04 \
+    --end-date 2026-01-10 \
+    --stores 15 \
+    --warehouses 5
+
+# Upload to HDFS
+.\scripts\upload_to_hdfs.ps1
+```
+
+### Query Operations
+
+#### Trino Query Examples
+
+```sql
+-- Connect to Trino
+docker exec -it procurement_trino trino
+
+-- View all catalogs
+SHOW CATALOGS;
+
+-- List HDFS tables
+SHOW TABLES FROM hive.default;
+
+-- Query order data
+SELECT 
+    sku,
+    SUM(quantity) as total_quantity,
+    COUNT(DISTINCT pos_id) as store_count
+FROM hive.default.orders
+WHERE order_date = DATE '2026-01-03'
+GROUP BY sku
+ORDER BY total_quantity DESC
+LIMIT 10;
+
+-- Query stock levels
+SELECT 
+    warehouse_id,
+    sku,
+    quantity
+FROM hive.default.stock
+WHERE stock_date = DATE '2026-01-03'
+ORDER BY warehouse_id, sku;
+
+-- Federated query: Join HDFS + PostgreSQL
+SELECT 
+    o.sku,
+    p.product_name,
+    p.category,
+    SUM(o.quantity) as demand
+FROM hive.default.orders o
+JOIN postgresql.procurement.products p ON o.sku = p.sku
+WHERE o.order_date = DATE '2026-01-03'
+GROUP BY o.sku, p.product_name, p.category
+ORDER BY demand DESC;
+```
+
+#### PostgreSQL Query Examples
+
+```bash
+# Connect to PostgreSQL
+docker exec -it procurement_postgres psql -U admin -d procurement_db
+
+# List all tables
+\dt
+
+# View products
+SELECT * FROM products LIMIT 10;
+
+# View suppliers
+SELECT supplier_name, contact_email, COUNT(*) as product_count
+FROM products
+GROUP BY supplier_name, contact_email
+ORDER BY product_count DESC;
+
+# View replenishment rules
+SELECT 
+    product_id,
+    product_name,
+    moq,
+    case_size,
+    lead_time_days
+FROM products
+WHERE category = 'Dairy';
+```
+
+### HDFS Operations
+
+#### File Management
+
+```bash
+# List HDFS directories
+docker exec procurement_namenode hdfs dfs -ls /
+
+# View raw data folders
+docker exec procurement_namenode hdfs dfs -ls /raw/orders
+docker exec procurement_namenode hdfs dfs -ls /raw/stock
+
+# Check file content
+docker exec procurement_namenode hdfs dfs -cat /raw/orders/sample_pos_1_2026-01-03.json
+
+# Get file statistics
+docker exec procurement_namenode hdfs dfs -stat "%r %b %n" /raw/orders/sample_pos_1_2026-01-03.json
+
+# Remove file
+docker exec procurement_namenode hdfs dfs -rm /path/to/file
+
+# Upload file from local to HDFS
+docker exec procurement_namenode hdfs dfs -put /local/path/file.json /hdfs/path/
+```
+
+#### Cluster Health Checks
+
+```bash
+# Full cluster report
+docker exec procurement_namenode hdfs dfsadmin -report
+
+# Check replication status
+docker exec procurement_namenode hdfs fsck / -files -blocks -locations
+
+# Verify 3-way replication
+docker exec procurement_namenode hdfs fsck / -files -blocks | grep -E "replication="
+
+# Datanode status
+docker exec procurement_namenode hdfs dfsadmin -printTopology
+```
+
+### Airflow Operations
+
+#### DAG Management
+
+```bash
+# List all DAGs
+docker exec procurement_airflow airflow dags list
+
+# Trigger manual run
+docker exec procurement_airflow airflow dags trigger procurement_daily_pipeline
+
+# Trigger with specific execution date
+docker exec procurement_airflow airflow dags trigger procurement_daily_pipeline \
+    --exec-date 2026-01-03
+
+# Pause DAG
+docker exec procurement_airflow airflow dags pause procurement_daily_pipeline
+
+# Unpause DAG
+docker exec procurement_airflow airflow dags unpause procurement_daily_pipeline
+```
+
+#### Task Management
+
+```bash
+# List tasks in DAG
+docker exec procurement_airflow airflow tasks list procurement_daily_pipeline
+
+# Test specific task
+docker exec procurement_airflow airflow tasks test \
+    procurement_daily_pipeline \
+    compute_demand \
+    2026-01-03
+
+# View task logs
+docker exec procurement_airflow cat /opt/airflow/logs/dag_id=procurement_daily_pipeline/run_id=manual__2026-01-03/task_id=compute_demand/attempt=1.log
+```
+
+---
+
+## 📊 Monitoring
+
+### System Health Dashboard
+
+#### Container Status
+
+```bash
+# Check all containers
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+# Expected output:
+# NAMES                      STATUS              PORTS
+# procurement_airflow        Up 2 hours          0.0.0.0:8081->8080/tcp
+# procurement_trino          Up 2 hours          0.0.0.0:8080->8080/tcp
+# procurement_namenode       Up 2 hours          0.0.0.0:9000->9000/tcp, 0.0.0.0:9870->9870/tcp
+# procurement_datanode1      Up 2 hours          0.0.0.0:9864->9864/tcp
+# procurement_datanode2      Up 2 hours          0.0.0.0:9865->9864/tcp
+# procurement_datanode3      Up 2 hours          0.0.0.0:9866->9864/tcp
+# procurement_postgres       Up 2 hours          0.0.0.0:5432->5432/tcp
+# procurement_pgadmin        Up 2 hours          0.0.0.0:5050->80/tcp
+```
+
+#### Service Health Endpoints
+
+```bash
+# Trino health
+curl http://localhost:8080/v1/info | jq
+
+# HDFS namenode
+curl http://localhost:9870/jmx | jq '.beans[] | select(.name=="Hadoop:service=NameNode,name=NameNodeStatus")'
+
+# Airflow health
+curl http://localhost:8081/health | jq
+
+# PostgreSQL connection
+docker exec procurement_postgres pg_isready -U admin
+```
+
+### Pipeline Monitoring
+
+#### Airflow UI (Recommended)
+
+1. Open http://localhost:8081
+2. Login: `admin` / `admin`
+3. View DAG: `procurement_daily_pipeline`
+4. Check:
+   - ✅ **Graph View**: Visual task dependencies
+   - ✅ **Tree View**: Historical execution timeline
+   - ✅ **Gantt View**: Task duration analysis
+   - ✅ **Task Duration**: Performance trends
+   - ✅ **Logs**: Detailed execution output
+
+#### Key Metrics to Monitor
+
+| Metric | Healthy Threshold | Warning Threshold | Critical Threshold |
+|--------|-------------------|-------------------|-------------------|
+| **Pipeline Duration** | < 60s | 60-120s | > 120s |
+| **Success Rate** | 100% | 95-99% | < 95% |
+| **Data Files** | 140 files | 130-140 files | < 130 files |
+| **HDFS Disk Usage** | < 50% | 50-80% | > 80% |
+| **Exception Count** | < 10 | 10-30 | > 30 |
+| **Critical Exceptions** | 0 | 1-2 | > 2 |
+
+### Log Monitoring
+
+```bash
+# Real-time logs for all services
+docker-compose logs -f
+
+# Specific service logs
+docker-compose logs -f airflow
+docker-compose logs -f trino
+docker-compose logs -f namenode
+
+# Airflow task logs
+docker exec procurement_airflow ls -lh /opt/airflow/logs/dag_id=procurement_daily_pipeline/
+
+# View latest pipeline summary
+docker exec procurement_airflow cat /opt/airflow/data/output/pipeline_summary_$(date +%Y-%m-%d).txt
+```
+
+---
+
+## 🔧 Troubleshooting
+
+### Common Issues & Solutions
+
+#### Issue: Containers Won't Start
+
+**Symptom:**
+```bash
+docker ps
+# Shows containers restarting or not running
+```
+
+**Solution:**
+```powershell
+# Check detailed logs
+docker-compose logs --tail=100
+
+# Common fixes:
+# 1. Port conflict - Check if ports are in use
+netstat -ano | findstr "5432 8080 8081 9000 9870"
+
+# 2. Insufficient resources
+# Increase Docker Desktop memory to 8GB+
+
+# 3. Corrupted volumes - Reset
+docker-compose down -v
+docker-compose up -d
+
+# 4. Network issues
+docker network prune
+docker-compose up -d
+```
+
+#### Issue: Trino Can't Connect to PostgreSQL
+
+**Symptom:**
+```
+Error: Failed to connect to catalog 'postgresql'
+```
+
+**Solution:**
+```bash
+# 1. Verify PostgreSQL is running
+docker exec procurement_postgres pg_isready -U admin
+
+# 2. Test connection from Trino
+docker exec -it procurement_trino trino --execute "SHOW CATALOGS"
+
+# 3. Check catalog configuration
+docker exec procurement_trino cat /etc/trino/catalog/postgresql.properties
+
+# Should contain:
+# connector.name=postgresql
+# connection-url=jdbc:postgresql://postgres:5432/procurement_db
+# connection-user=admin
+# connection-password=password
+
+# 4. Restart Trino if config was changed
+docker-compose restart trino
+```
+
+#### Issue: HDFS Datanode Not Registering
+
+**Symptom:**
+```bash
+hdfs dfsadmin -report
+# Shows less than 4 datanodes
+```
+
+**Solution:**
+```bash
+# 1. Check datanode logs
+docker-compose logs datanode1 datanode2 datanode3
+
+# 2. Verify namenode is healthy
+docker exec procurement_namenode hdfs dfsadmin -safemode get
+
+# 3. If in safe mode, force leave
+docker exec procurement_namenode hdfs dfsadmin -safemode leave
+
+# 4. Restart datanodes
+docker-compose restart datanode1 datanode2 datanode3
+
+# 5. Wait 30 seconds and verify
+docker exec procurement_namenode hdfs dfsadmin -report
+```
+
+#### Issue: Airflow DAG Not Appearing
+
+**Symptom:**
+```
+DAG 'procurement_daily_pipeline' not found in UI
+```
+
+**Solution:**
+```bash
+# 1. Check DAG file exists
+docker exec procurement_airflow ls -l /opt/airflow/dags/procurement_dag.py
+
+# 2. Check for Python syntax errors
+docker exec procurement_airflow python -m py_compile /opt/airflow/dags/procurement_dag.py
+
+# 3. Force DAG refresh
+docker exec procurement_airflow airflow dags list-import-errors
+
+# 4. Restart Airflow
+docker-compose restart airflow
+
+# 5. Check Airflow logs
+docker-compose logs airflow | grep "ERROR"
+```
+
+#### Issue: Pipeline Fails on Data Validation
+
+**Symptom:**
+```
+Task 'data_quality_check' failed
+```
+
+**Solution:**
+```bash
+# 1. Check data files exist
+docker exec procurement_airflow ls /opt/airflow/data/raw/orders/*.json | wc -l
+docker exec procurement_airflow ls /opt/airflow/data/raw/stock/*.csv | wc -l
+
+# 2. Validate file format
+docker exec procurement_airflow cat /opt/airflow/data/raw/orders/sample_pos_1_2026-01-03.json | jq .
+
+# 3. Run validation script manually
+docker exec procurement_airflow python /opt/airflow/scripts/validate_data_quality.py
+
+# 4. Check for missing fields
+docker exec procurement_airflow grep -l "null" /opt/airflow/data/raw/orders/*.json
+```
+
+#### Issue: Trino Queries Timeout
+
+**Symptom:**
+```
+Query exceeded maximum time limit of 30s
+```
+
+**Solution:**
+```bash
+# 1. Check Trino resource usage
+curl http://localhost:8080/v1/info | jq '.memoryInfo'
+
+# 2. Increase query timeout in config
+docker exec procurement_trino cat /etc/trino/config.properties
+# Add: query.max-execution-time=10m
+
+# 3. Optimize query (use filters early)
+# ❌ Bad: SELECT * FROM hive.default.orders WHERE sku = 'SKU-0001'
+# ✅ Good: SELECT sku, quantity FROM hive.default.orders WHERE order_date = DATE '2026-01-03' AND sku = 'SKU-0001'
+
+# 4. Restart Trino after config change
+docker-compose restart trino
+```
+
+### Quick Diagnostic Commands
+
+```bash
+# System Overview
+docker ps --format "table {{.Names}}\t{{.Status}}"
+docker stats --no-stream
+
+# Service Connectivity Test
+docker exec procurement_airflow python /opt/airflow/scripts/test_connection.py
+
+# HDFS Health Check
+docker exec procurement_namenode hdfs fsck / | grep -E "Status|Total"
+
+# PostgreSQL Health Check
+docker exec procurement_postgres psql -U admin -d procurement_db -c "SELECT COUNT(*) FROM products"
+
+# Trino Health Check
+curl -s http://localhost:8080/v1/info | jq '.starting'
+
+# Airflow Scheduler Status
+docker exec procurement_airflow airflow jobs check --job-type SchedulerJob
+
+# View Latest Exceptions
+docker exec procurement_airflow cat /opt/airflow/data/output/exception_report_$(date +%Y-%m-%d).json | jq '.summary'
+```
+
+### Emergency Reset
     │
     ├── docker-compose.yml             # Infrastructure definition
     │
@@ -1938,14 +2756,279 @@ docker logs procurement-postgres
 
 ---
 
-## 👥 Team
+### Emergency Reset
 
-**Project:** Big Data Fundamentals (Fondements Big Data)  
-**Institution:** ENSA Al Hoceima  
-**Academic Year:** 2025-2026
+```powershell
+# ⚠️ WARNING: This will DELETE all data and containers!
+
+# Stop and remove all containers + volumes
+docker-compose down -v
+
+# Remove all project containers
+docker rm -f $(docker ps -aq --filter "name=procurement")
+
+# Remove networks
+docker network prune -f
+
+# Clean up volumes
+docker volume prune -f
+
+# Restart from scratch
+.\setup.ps1  # Windows
+# OR
+./setup.sh   # Linux/macOS
+```
 
 ---
 
-## 📄 License
+## 🤝 Contributing
 
-Academic project - ENSA Al Hoceima © 2025-2026
+### Development Workflow
+
+1. **Create Feature Branch**
+   ```bash
+   git checkout -b feature/your-feature-name
+   ```
+
+2. **Make Changes**
+   - Update code in `scripts/` or `airflow/dags/`
+   - Test changes locally
+   - Update documentation
+
+3. **Run Tests**
+   ```bash
+   python scripts/test_system.py
+   python scripts/test_connection.py
+   ```
+
+4. **Commit & Push**
+   ```bash
+   git add .
+   git commit -m "feat: descriptive commit message"
+   git push origin feature/your-feature-name
+   ```
+
+5. **Create Pull Request**
+   - Provide clear description
+   - Link related issues
+   - Request code review
+
+### Coding Standards
+
+#### Python Style Guide
+
+```python
+# ✅ Use type hints
+def calculate_demand(orders: pd.DataFrame, stock: pd.DataFrame) -> pd.DataFrame:
+    pass
+
+# ✅ Docstrings for functions
+def export_orders(date: str) -> dict:
+    """
+    Export supplier orders for a specific date.
+    
+    Args:
+        date (str): Processing date in YYYY-MM-DD format
+        
+    Returns:
+        dict: Export results with file count and total units
+    """
+    pass
+
+# ✅ Business-meaningful variable names
+net_demand = total_orders - available_stock + safety_stock
+
+# ❌ Avoid generic names
+result = x - y + z
+```
+
+#### SQL Style Guide
+
+```sql
+-- ✅ Explicit catalog references
+SELECT * FROM postgresql.procurement.products
+
+-- ✅ Uppercase keywords
+SELECT sku, SUM(quantity) AS total
+FROM hive.default.orders
+WHERE order_date = DATE '2026-01-03'
+GROUP BY sku
+
+-- ✅ Readable formatting
+SELECT 
+    o.sku,
+    p.product_name,
+    SUM(o.quantity) as demand
+FROM hive.default.orders o
+JOIN postgresql.procurement.products p 
+    ON o.sku = p.sku
+WHERE o.order_date = DATE '2026-01-03'
+GROUP BY o.sku, p.product_name
+```
+
+### Testing Guidelines
+
+```bash
+# Always test before committing:
+
+# 1. Syntax validation
+python -m py_compile scripts/*.py
+
+# 2. Connection tests
+python scripts/test_connection.py
+
+# 3. System validation
+python scripts/test_system.py
+
+# 4. Manual pipeline run
+python scripts/run_pipeline.py --date 2026-01-03
+
+# 5. Check outputs
+ls -lh data/output/
+cat data/output/pipeline_summary_2026-01-03.txt
+```
+
+---
+
+## 📚 Additional Resources
+
+### Documentation
+
+- 📖 [HDFS_REPLICATION.md](procurement-pipeline/HDFS_REPLICATION.md) - HDFS 3-way replication details
+- 📖 [PROJECT_STATUS.md](procurement-pipeline/PROJECT_STATUS.md) - Current project state
+- 📖 [TODO.MD](TODO.MD) - Project roadmap and tasks
+- 📖 [SUMMARY_REPORT.md](procurement-pipeline/SUMMARY_REPORT.md) - Pipeline execution reports
+
+### Official Documentation
+
+- **Apache Airflow**: https://airflow.apache.org/docs/
+- **Trino**: https://trino.io/docs/current/
+- **Apache Hadoop HDFS**: https://hadoop.apache.org/docs/stable/
+- **PostgreSQL**: https://www.postgresql.org/docs/
+- **Docker Compose**: https://docs.docker.com/compose/
+
+### Useful Commands Cheat Sheet
+
+```bash
+# ===== DOCKER =====
+docker-compose up -d              # Start all services
+docker-compose down               # Stop all services
+docker-compose ps                 # List containers
+docker-compose logs -f service    # Follow logs
+
+# ===== HDFS =====
+hdfs dfs -ls /                    # List HDFS root
+hdfs dfs -cat /path/file          # View file content
+hdfs dfs -put local remote        # Upload file
+hdfs dfsadmin -report             # Cluster report
+
+# ===== TRINO =====
+trino --execute "SHOW CATALOGS"   # List catalogs
+trino --execute "SHOW TABLES FROM hive.default"
+
+# ===== AIRFLOW =====
+airflow dags list                 # List DAGs
+airflow dags trigger dag_id       # Trigger DAG
+airflow tasks test dag_id task_id date
+
+# ===== POSTGRESQL =====
+psql -U admin -d procurement_db   # Connect to DB
+\dt                               # List tables
+\d+ table_name                    # Describe table
+```
+
+---
+
+## 📞 Contact
+
+### Project Information
+
+**Academic Institution**: École Nationale des Sciences Appliquées (ENSA) Al Hoceima  
+**Department**: Computer Engineering & Data Science  
+**Module**: Fondements Big Data (Big Data Fundamentals)  
+**Academic Year**: 2025-2026  
+**Project Type**: Batch Data Pipeline with Distributed Storage
+
+### Support
+
+For questions, issues, or collaboration:
+
+- 📧 **Email**: [Your University Email]
+- 🏫 **Institution**: ENSA Al Hoceima, Morocco
+- 📚 **Course**: Big Data Fundamentals
+- 🌐 **Project Repository**: [GitHub Link]
+
+### Acknowledgments
+
+This project demonstrates:
+- ✅ **Distributed Storage**: HDFS with 3-way replication
+- ✅ **Federated Queries**: Trino querying multiple data sources
+- ✅ **Workflow Orchestration**: Apache Airflow DAG scheduling
+- ✅ **Data Engineering**: ETL pipeline with business logic
+- ✅ **Containerization**: Docker-based microservices architecture
+- ✅ **Best Practices**: Code quality, testing, documentation
+
+**Special Thanks To**:
+- Apache Software Foundation for Airflow, Hadoop, and related tools
+- Trino Community for the powerful query engine
+- Docker Inc. for containerization platform
+- PostgreSQL Global Development Group
+- Open Source Community
+
+---
+
+## 📜 License
+
+**Academic Project** - ENSA Al Hoceima © 2025-2026
+
+This project is developed for educational purposes as part of the Big Data Fundamentals course at École Nationale des Sciences Appliquées (ENSA) Al Hoceima.
+
+### Usage Rights
+
+- ✅ Educational use permitted
+- ✅ Code may be studied and learned from
+- ✅ Attribution to ENSA Al Hoceima required
+- ❌ Commercial use not permitted without authorization
+- ❌ Redistribution requires permission
+
+---
+
+## 🌟 Project Highlights
+
+### Technical Achievements
+
+- ✅ **Production-Grade**: Professional Docker-based infrastructure
+- ✅ **Highly Available**: 3-way HDFS replication with 4 datanodes
+- ✅ **Automated**: One-command setup with `setup.ps1`/`setup.sh`
+- ✅ **Monitored**: Comprehensive Airflow UI and logging
+- ✅ **Tested**: Validation scripts and health checks
+- ✅ **Documented**: 2000+ lines of comprehensive documentation
+- ✅ **Scalable**: Handles 141+ files across distributed storage
+- ✅ **Intelligent**: Business rules for procurement optimization
+
+### Academic Learning Outcomes
+
+Through this project, students learn:
+
+1. **Distributed Systems**: HDFS architecture and replication
+2. **Query Federation**: Trino's ability to query multiple sources
+3. **Workflow Orchestration**: Airflow DAG design and scheduling
+4. **Data Engineering**: ETL pipeline construction
+5. **Containerization**: Docker Compose for microservices
+6. **Big Data Concepts**: Batch processing, data lakes, OLTP vs OLAP
+7. **SQL Optimization**: Query performance tuning
+8. **Production Operations**: Monitoring, logging, troubleshooting
+
+---
+
+<div align="center">
+
+### 🎓 Built with Knowledge, Powered by Open Source
+
+**ENSA Al Hoceima | Big Data Fundamentals | 2025-2026**
+
+---
+
+**[⬆ Back to Top](#-big-data-procurement-pipeline)**
+
+</div>
