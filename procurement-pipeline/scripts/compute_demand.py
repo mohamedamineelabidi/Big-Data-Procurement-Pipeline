@@ -16,11 +16,16 @@ if sys.platform == 'win32':
 import json
 import pandas as pd
 from pathlib import Path
+from contextlib import closing
+from datetime import datetime, timedelta
 from trino.dbapi import connect
 
 class DemandAnalyzer:
-    def __init__(self, base_path="data/raw"):
+    def __init__(self, base_path="data"):
         self.base_path = Path(base_path)
+        self.raw_path = self.base_path / "raw"
+        self.output_path = self.base_path / "output"
+        self.output_path.mkdir(parents=True, exist_ok=True)
         self.trino_conn = None
         
     def connect_trino(self):
@@ -34,17 +39,28 @@ class DemandAnalyzer:
             http_scheme='http'
         )
         return self.trino_conn
+
+    def close_trino(self):
+        if self.trino_conn:
+            try:
+                self.trino_conn.close()
+            finally:
+                self.trino_conn = None
     
-    def load_orders_from_json(self, date_str="2026-01-03"):
+    def load_orders_from_json(self, date_str=None):
         """Load all orders for a specific date from JSON files"""
+        date_str = date_str or (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
         print(f"\n📦 Loading Orders for {date_str}...")
         
-        orders_path = self.base_path / "orders"
+        orders_path = self.raw_path / "orders"
         all_items = []
         
         # Find all JSON files for the date
         order_files = list(orders_path.glob(f"*_{date_str}.json"))
         print(f"   Found {len(order_files)} POS files")
+
+        if len(order_files) == 0:
+            raise FileNotFoundError(f"No order JSON files found for {date_str} in {orders_path}")
         
         for file in order_files:
             with open(file, 'r') as f:
@@ -52,8 +68,12 @@ class DemandAnalyzer:
                 
             # Flatten nested structure
             for order in orders:
+                if 'pos_id' not in order or 'items' not in order:
+                    raise KeyError(f"Invalid order structure in {file}: missing pos_id or items")
                 pos_id = order['pos_id']
                 for item in order['items']:
+                    if 'sku' not in item or 'quantity' not in item:
+                        raise KeyError(f"Invalid order item in {file}: missing sku or quantity")
                     all_items.append({
                         'pos_id': pos_id,
                         'sku': item['sku'],
@@ -64,16 +84,20 @@ class DemandAnalyzer:
         print(f"   Total order items: {len(all_items)}")
         return pd.DataFrame(all_items)
     
-    def load_stock_from_csv(self, date_str="2026-01-03"):
+    def load_stock_from_csv(self, date_str=None):
         """Load all stock data for a specific date from CSV files"""
+        date_str = date_str or (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
         print(f"\n📊 Loading Stock for {date_str}...")
         
-        stock_path = self.base_path / "stock"
+        stock_path = self.raw_path / "stock"
         all_stock = []
         
         # Find all CSV files for the date
         stock_files = list(stock_path.glob(f"*_{date_str}.csv"))
         print(f"   Found {len(stock_files)} warehouse files")
+
+        if len(stock_files) == 0:
+            raise FileNotFoundError(f"No stock CSV files found for {date_str} in {stock_path}")
         
         for file in stock_files:
             df = pd.read_csv(file)
@@ -130,9 +154,10 @@ class DemandAnalyzer:
             LEFT JOIN suppliers s ON r.supplier_id = s.supplier_id
         """
         
-        cur.execute(query)
-        columns = [desc[0] for desc in cur.description]
-        data = cur.fetchall()
+        with closing(cur) as cursor:
+            cursor.execute(query)
+            columns = [desc[0] for desc in cursor.description]
+            data = cursor.fetchall()
         
         master_df = pd.DataFrame(data, columns=columns)
         print(f"   Loaded {len(master_df)} products with rules")
@@ -181,8 +206,9 @@ class DemandAnalyzer:
         
         return result
     
-    def generate_report(self, replenishment_df, date_str="2026-01-03"):
+    def generate_report(self, replenishment_df, date_str=None):
         """Generate replenishment report"""
+        date_str = date_str or (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
         print("\n" + "="*70)
         print(f"📋 REPLENISHMENT REPORT - {date_str}")
         print("="*70)
@@ -215,8 +241,9 @@ class DemandAnalyzer:
         
         return by_supplier, top_items
     
-    def run_analysis(self, date_str="2026-01-03"):
+    def run_analysis(self, date_str=None):
         """Run complete demand analysis"""
+        date_str = date_str or (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
         print("="*70)
         print("🚀 STARTING DEMAND ANALYSIS PIPELINE")
         print("="*70)
@@ -243,10 +270,7 @@ class DemandAnalyzer:
             self.generate_report(replenishment_df, date_str)
             
             # Save results
-            output_path = Path("output")
-            output_path.mkdir(exist_ok=True)
-            
-            output_file = output_path / f"replenishment_{date_str}.csv"
+            output_file = self.output_path / f"replenishment_{date_str}.csv"
             replenishment_df.to_csv(output_file, index=False)
             print(f"\n💾 Results saved to: {output_file}")
             
@@ -258,13 +282,16 @@ class DemandAnalyzer:
             import traceback
             traceback.print_exc()
             return None
+        finally:
+            self.close_trino()
 
 if __name__ == "__main__":
     import argparse
     
     parser = argparse.ArgumentParser(description='Compute procurement demand')
-    parser.add_argument('--date', default='2026-01-03', help='Date to process (YYYY-MM-DD)')
+    parser.add_argument('--date', default=None, help='Date to process (YYYY-MM-DD)')
+    parser.add_argument('--base-path', default='data', help='Base data directory (contains raw/output)')
     args = parser.parse_args()
     
-    analyzer = DemandAnalyzer()
+    analyzer = DemandAnalyzer(base_path=args.base_path)
     result = analyzer.run_analysis(date_str=args.date)

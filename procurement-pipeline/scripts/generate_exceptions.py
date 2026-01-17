@@ -19,7 +19,7 @@ if sys.platform == 'win32':
 import json
 import pandas as pd
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 import argparse
 import sys
 
@@ -42,12 +42,14 @@ class ExceptionReporter:
     
     def __init__(self, base_path="."):
         self.base_path = Path(base_path)
-        self.output_path = Path("logs")
+        self.output_path = self.base_path / "logs"
+        self.data_output_path = self.base_path / "output"
         self.output_path.mkdir(parents=True, exist_ok=True)
+        self.data_output_path.mkdir(parents=True, exist_ok=True)
         
     def load_replenishment_data(self, date_str):
         """Load the replenishment CSV for a given date"""
-        input_file = Path("output") / f"replenishment_{date_str}.csv"
+        input_file = self.data_output_path / f"replenishment_{date_str}.csv"
         
         if not input_file.exists():
             raise FileNotFoundError(f"Replenishment file not found: {input_file}")
@@ -368,8 +370,8 @@ class ExceptionReporter:
 def main():
     """Main entry point"""
     parser = argparse.ArgumentParser(description='Generate procurement exception report')
-    parser.add_argument('--date', default='2026-01-03', help='Date to analyze (YYYY-MM-DD)')
-    parser.add_argument('--output', default='data', help='Base output directory')
+    parser.add_argument('--date', default=(datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d'), help='Date to analyze (YYYY-MM-DD)')
+    parser.add_argument('--output', default='data', help='Base data directory (contains output/logs)')
     
     args = parser.parse_args()
     

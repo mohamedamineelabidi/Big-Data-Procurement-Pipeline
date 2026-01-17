@@ -2,13 +2,14 @@ import os
 import json
 import csv
 from datetime import datetime
-
-# Configuration
-ORDERS_DIR = "data/raw/orders"
-STOCK_DIR = "data/raw/stock"
+from pathlib import Path
 
 class DataQualityValidator:
-    def __init__(self):
+    def __init__(self, base_path="data"):
+        self.base_path = Path(base_path)
+        self.orders_dir = self.base_path / "raw" / "orders"
+        self.stock_dir = self.base_path / "raw" / "stock"
+
         self.errors = []
         self.warnings = []
         self.stats = {
@@ -21,17 +22,17 @@ class DataQualityValidator:
         """Validate JSON order files."""
         print("\n=== Validating POS Orders ===")
         
-        if not os.path.exists(ORDERS_DIR):
-            self.errors.append(f"Orders directory not found: {ORDERS_DIR}")
+        if not self.orders_dir.exists():
+            self.errors.append(f"Orders directory not found: {self.orders_dir}")
             return
         
-        files = [f for f in os.listdir(ORDERS_DIR) if f.endswith('.json')]
+        files = [f for f in os.listdir(self.orders_dir) if f.endswith('.json')]
         if not files:
             self.errors.append("No order files found")
             return
         
         for filename in files:
-            filepath = os.path.join(ORDERS_DIR, filename)
+            filepath = self.orders_dir / filename
             self.stats['files_checked'] += 1
             
             # Check file size
@@ -100,11 +101,11 @@ class DataQualityValidator:
         """Validate CSV stock files."""
         print("\n=== Validating Warehouse Stock ===")
         
-        if not os.path.exists(STOCK_DIR):
-            self.errors.append(f"Stock directory not found: {STOCK_DIR}")
+        if not self.stock_dir.exists():
+            self.errors.append(f"Stock directory not found: {self.stock_dir}")
             return
         
-        files = [f for f in os.listdir(STOCK_DIR) if f.endswith('.csv')]
+        files = [f for f in os.listdir(self.stock_dir) if f.endswith('.csv')]
         if not files:
             self.errors.append("No stock files found")
             return
@@ -112,7 +113,7 @@ class DataQualityValidator:
         required_columns = ['warehouse_id', 'date', 'sku', 'quantity_on_hand']
         
         for filename in files:
-            filepath = os.path.join(STOCK_DIR, filename)
+            filepath = self.stock_dir / filename
             self.stats['files_checked'] += 1
             
             # Check file size
@@ -184,9 +185,9 @@ class DataQualityValidator:
                 print(f"   ... and {len(self.warnings) - 10} more warnings")
         
         # Write detailed log
-        log_dir = "logs"
-        os.makedirs(log_dir, exist_ok=True)
-        log_file = os.path.join(log_dir, f"data_quality_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
+        log_dir = self.base_path / "logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_file = log_dir / f"data_quality_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
         
         with open(log_file, 'w') as f:
             f.write("DATA QUALITY VALIDATION LOG\n")

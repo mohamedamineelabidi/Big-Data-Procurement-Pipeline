@@ -124,17 +124,24 @@ class ProcurementPipeline:
         logger.info(f"Stage 1: Validating data for {date_str}")
         
         try:
-            from validate_data_quality import DataValidator
-            validator = DataValidator(base_path=str(self.base_path))
-            results = validator.validate_all()
+            from validate_data_quality import DataQualityValidator
+            validator = DataQualityValidator(base_path=str(self.base_path))
+            validator.validate_orders()
+            validator.validate_stock()
+            passed = validator.generate_report()
             
-            self.log_stage('validation', 'SUCCESS', {
-                'files_checked': results.get('total_files', 0),
-                'passed': results.get('all_passed', False)
+            self.log_stage('validation', 'SUCCESS' if passed else 'FAILED', {
+                'files_checked': validator.stats.get('files_checked', 0),
+                'orders_validated': validator.stats.get('orders_validated', 0),
+                'stock_records_validated': validator.stats.get('stock_records_validated', 0)
             })
-            return True, results
+            return passed, {
+                'passed': passed,
+                'stats': validator.stats,
+                'errors': validator.errors,
+                'warnings': validator.warnings
+            }
         except ImportError:
-            # Validation script not available, skip
             logger.warning("  Validation script not found, skipping...")
             self.log_stage('validation', 'SKIPPED')
             return True, {}
@@ -148,7 +155,7 @@ class ProcurementPipeline:
         
         try:
             from compute_demand import DemandAnalyzer
-            analyzer = DemandAnalyzer(base_path=str(self.base_path / "raw"))
+            analyzer = DemandAnalyzer(base_path=str(self.base_path))
             result_df = analyzer.run_analysis(date_str=date_str)
             
             if result_df is None or result_df.empty:
@@ -238,9 +245,9 @@ class ProcurementPipeline:
         summary_lines.extend([
             "─" * 70,
             "  OUTPUT FILES:",
-            f"    📄 Replenishment: data/output/replenishment_{date_str}.csv",
-            f"    📁 Supplier Orders: data/output/supplier_orders/",
-            f"    📁 Exceptions: data/output/exceptions/",
+            f"    📄 Replenishment: {self.output_path / f'replenishment_{date_str}.csv'}",
+            f"    📁 Supplier Orders: {self.output_path / 'supplier_orders'}",
+            f"    📁 Exceptions: {self.output_path / 'exceptions'}",
             "═" * 70,
         ])
         
@@ -282,6 +289,8 @@ class ProcurementPipeline:
             if not skip_validation:
                 success, result = self.run_stage_validation(date_str)
                 results['validation'] = result
+                if not success:
+                    raise RuntimeError("Data validation failed")
             
             # Stage 2: Demand Computation
             success, result = self.run_stage_demand(date_str)
@@ -357,7 +366,7 @@ Examples:
     
     parser.add_argument(
         '--date', 
-        default='2026-01-03',
+        default=(datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d'),
         help='Date to process (YYYY-MM-DD format)'
     )
     parser.add_argument(

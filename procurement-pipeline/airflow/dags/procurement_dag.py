@@ -102,7 +102,7 @@ def run_data_quality_check(**context):
     # Import and run validation
     from validate_data_quality import DataQualityValidator
     
-    validator = DataQualityValidator()
+    validator = DataQualityValidator(base_path='/opt/airflow/data')
     validator.validate_orders()
     validator.validate_stock()
     
@@ -131,7 +131,7 @@ def run_demand_computation(**context):
     
     from compute_demand import DemandAnalyzer
     
-    analyzer = DemandAnalyzer(base_path='/opt/airflow/data/raw')
+    analyzer = DemandAnalyzer(base_path='/opt/airflow/data')
     
     # Load data and compute demand
     orders_df = analyzer.load_orders_from_json(processing_date)
@@ -210,13 +210,16 @@ def generate_summary_report(**context):
     demand_result = context['ti'].xcom_pull(key='demand_result', task_ids='compute_demand')
     export_result = context['ti'].xcom_pull(key='export_result', task_ids='export_orders')
     exception_result = context['ti'].xcom_pull(key='exception_result', task_ids='generate_exceptions')
+
+    completed_dt = context.get('data_interval_end') or context.get('execution_date')
+    completed_at = completed_dt.strftime('%Y-%m-%d %H:%M:%S') if completed_dt else 'n/a'
     
     summary = f"""
 ╔══════════════════════════════════════════════════════════════════════╗
 ║                  PROCUREMENT PIPELINE SUMMARY                        ║
 ╠══════════════════════════════════════════════════════════════════════╣
 ║  Processing Date: {processing_date}                                      
-║  Completed At: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}                     
+║  Completed At: {completed_at}                     
 ╠══════════════════════════════════════════════════════════════════════╣
 ║  📊 DEMAND ANALYSIS                                                  
 ║     • SKUs to reorder: {demand_result.get('skus', 'N/A')}                       
