@@ -312,6 +312,13 @@ hdfs>=2.6.0                # Python HDFS client
 
 ### Installation
 
+Before running Docker, copy the sample env file and set strong secrets:
+
+```bash
+cp procurement-pipeline/.env.example procurement-pipeline/.env
+# edit procurement-pipeline/.env to set POSTGRES_PASSWORD, AIRFLOW_FERNET_KEY, AIRFLOW_SECRET_KEY, etc.
+```
+
 #### Windows (PowerShell)
 
 ```powershell

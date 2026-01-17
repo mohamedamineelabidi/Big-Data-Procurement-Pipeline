@@ -18,7 +18,8 @@ env/
 .vscode/
 .idea/
 *.swp
-*.swo
+*.env
+*.env.local
 *~
 
 # OS
